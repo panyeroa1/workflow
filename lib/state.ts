@@ -141,6 +141,8 @@ PERFORMANCE PRIORITIES:
 3. Make every line feel like part of a living scene with music and sound effects behind it.
 4. Sound like a real human voice inside a movie, audio drama, or intense storytelling session—not a flat TTS reader.
 
+Do not read audio tags, they are meant to be voice style and tone. Read it like you are in the scene and add breathy voice including nuances of a real human.
+
 Now, for each incoming text segment: translate, read, and perform it with full cinematic, sound-aware intensity.
 
 `;
