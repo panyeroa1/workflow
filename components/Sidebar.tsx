@@ -15,6 +15,8 @@ export default function Sidebar() {
     language, setLanguage, detectedLanguage,
     voice, setVoice, 
     voiceStyle, setVoiceStyle,
+    // Characters
+    characters, addCharacter, removeCharacter,
     // BGM State
     bgmUrls, bgmIndex, bgmVolume, bgmPlaying,
     setBgmPlaying, setBgmVolume, setBgmIndex, addBgmUrl
@@ -25,6 +27,11 @@ export default function Sidebar() {
   // BGM Local State
   const [newBgmUrl, setNewBgmUrl] = useState('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Character Local State
+  const [newCharName, setNewCharName] = useState('');
+  const [newCharStyle, setNewCharStyle] = useState('');
+  const [newCharVoice, setNewCharVoice] = useState(AVAILABLE_VOICES[0]);
 
   // BGM Logic
   useEffect(() => {
@@ -57,6 +64,20 @@ export default function Sidebar() {
     if (newBgmUrl.trim()) {
       addBgmUrl(newBgmUrl.trim());
       setNewBgmUrl('');
+    }
+  };
+
+  const handleAddCharacter = () => {
+    if (newCharName.trim() && newCharStyle.trim()) {
+      addCharacter({
+        name: newCharName.trim(),
+        style: newCharStyle.trim(),
+        voiceName: newCharVoice
+      });
+      setNewCharName('');
+      setNewCharStyle('');
+      // Keep voice selection or reset? Resetting to default for now
+      setNewCharVoice(AVAILABLE_VOICES[0]);
     }
   };
 
@@ -167,7 +188,7 @@ export default function Sidebar() {
               </div>
 
               <div style={{marginBottom: '1rem'}}>
-                <label style={{display: 'block', marginBottom: '8px', fontSize: '0.85rem'}}>Voice Model</label>
+                <label style={{display: 'block', marginBottom: '8px', fontSize: '0.85rem'}}>Main Narrator Voice</label>
                 <select
                   value={voice}
                   onChange={e => setVoice(e.target.value)}
@@ -207,11 +228,91 @@ export default function Sidebar() {
                   <option value="dramatic">Dramatic (Slow)</option>
                 </select>
               </div>
-
-              <div style={{marginTop: '20px', padding: '12px', background: 'var(--bg-panel-secondary)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic'}}>
-                 System Prompt is managed automatically by Eburon Controller based on selected language and style.
-              </div>
             </fieldset>
+          </div>
+
+          <div className="sidebar-section">
+            <h4 className="sidebar-section-title">Cast & Characters (Audio Drama)</h4>
+            <div style={{background: 'var(--bg-panel-secondary)', padding: '12px', borderRadius: '8px', marginBottom: '12px'}}>
+              <div style={{marginBottom: '8px'}}>
+                <label style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Character Name</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Detective, Alice" 
+                  value={newCharName}
+                  onChange={(e) => setNewCharName(e.target.value)}
+                  style={{fontSize: '0.85rem', padding: '8px', marginBottom: '8px'}}
+                />
+              </div>
+              <div style={{marginBottom: '8px'}}>
+                <label style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Description / Tone</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Gruff, whispered, anxious" 
+                  value={newCharStyle}
+                  onChange={(e) => setNewCharStyle(e.target.value)}
+                  style={{fontSize: '0.85rem', padding: '8px', marginBottom: '8px'}}
+                />
+              </div>
+              <div style={{marginBottom: '8px'}}>
+                <label style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Voice Actor</label>
+                <select 
+                  value={newCharVoice} 
+                  onChange={(e) => setNewCharVoice(e.target.value)}
+                  style={{
+                    fontSize: '0.85rem', padding: '8px',
+                    appearance: 'none',
+                    backgroundImage: `var(--select-arrow)`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 12px center',
+                    backgroundSize: '1em'
+                  }}
+                >
+                  {AVAILABLE_VOICES.map(v => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <button 
+                onClick={handleAddCharacter}
+                disabled={!newCharName || !newCharStyle}
+                style={{
+                  width: '100%',
+                  background: 'var(--Blue-500)', 
+                  color: 'white', 
+                  borderRadius: '6px', 
+                  padding: '8px',
+                  opacity: (!newCharName || !newCharStyle) ? 0.5 : 1,
+                  fontSize: '0.85rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                + Add Character
+              </button>
+            </div>
+
+            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+              {characters.length === 0 && (
+                 <div style={{fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center'}}>
+                   No characters added. Using default narrator only.
+                 </div>
+              )}
+              {characters.map(char => (
+                <div key={char.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', background: 'var(--Neutral-20)', borderRadius: '6px', borderLeft: '3px solid var(--accent-blue)'}}>
+                  <div>
+                    <div style={{fontSize: '0.85rem', fontWeight: 'bold'}}>{char.name}</div>
+                    <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>{char.style}</div>
+                    <div style={{fontSize: '0.75rem', color: 'var(--accent-blue)'}}>Voice: {char.voiceName}</div>
+                  </div>
+                  <button 
+                    onClick={() => removeCharacter(char.id)}
+                    style={{color: 'var(--Red-400)'}}
+                  >
+                    <span className="material-symbols-outlined" style={{fontSize: '18px'}}>delete</span>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="sidebar-section">

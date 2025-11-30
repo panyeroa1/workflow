@@ -21,10 +21,10 @@ const workerScript = `
 const segmentText = (text: string): string[] => {
   if (!text) return [];
 
+  // Initial split to get raw sentences
   let sentences: string[] = [];
-
+  
   // Robust segmentation using Intl.Segmenter (Standard in modern browsers)
-  // This handles "Dr. Smith", "e.g.", and other abbreviation cases correctly.
   if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
     try {
       // @ts-ignore
@@ -32,7 +32,6 @@ const segmentText = (text: string): string[] => {
       // @ts-ignore
       sentences = Array.from(segmenter.segment(text)).map((s: any) => s.segment);
     } catch (e) {
-      // Fallback regex if instantiation fails (handles basic punctuation)
       sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
     }
   } else {
@@ -42,33 +41,34 @@ const segmentText = (text: string): string[] => {
   const chunks: string[] = [];
   let currentChunk = '';
   
-  // Heuristics for "Theatrical" pacing:
-  // We want to group short punchy sentences, but isolate long complex ones.
-  const SOFT_LIMIT = 100; // Try to wrap after this
-  const HARD_LIMIT = 220; // Force wrap close to this
+  const SOFT_LIMIT = 100;
+  const HARD_LIMIT = 220; 
+
+  // Regex to detect Character Dialogue start (e.g., "John:", "DETECTIVE:", "Alice (Angry):")
+  const charRegex = /^([A-Z][a-zA-Z0-9\s\(\)]+):/;
 
   for (const sentence of sentences) {
     const cleanSentence = sentence.trim();
     if (!cleanSentence) continue;
     
-    // Check if adding this sentence would exceed limits
+    // Check if this sentence starts a new character's dialogue
+    const startsWithCharacter = charRegex.test(cleanSentence);
+
+    // If we have a chunk building up, and we hit a hard limit OR a new character speaks, flush the old chunk.
     const potentialLength = currentChunk.length + cleanSentence.length;
 
-    // Logic:
-    // 1. If we have nothing, just start.
-    // 2. If the current chunk plus next sentence is massive (Hard Limit), push current and start new.
-    // 3. If the current chunk is already a decent size (Soft Limit) and we have a sentence end, push it.
-    
     if (currentChunk.length > 0) {
-      if (potentialLength > HARD_LIMIT) {
+      if (startsWithCharacter) {
+        // New speaker? Flush previous chunk immediately to keep voices distinct
+        chunks.push(currentChunk.trim());
+        currentChunk = cleanSentence;
+      } else if (potentialLength > HARD_LIMIT) {
         chunks.push(currentChunk.trim());
         currentChunk = cleanSentence;
       } else if (currentChunk.length > SOFT_LIMIT) {
-        // We are in the "sweet spot", let's push the previous thought and start a new one
         chunks.push(currentChunk.trim());
         currentChunk = cleanSentence;
       } else {
-        // Still short, append it for better flow (grouping short sentences)
         currentChunk += ' ' + cleanSentence;
       }
     } else {
@@ -76,7 +76,6 @@ const segmentText = (text: string): string[] => {
     }
   }
   
-  // Push any remaining text
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
@@ -105,7 +104,6 @@ export default function DatabaseBridge() {
   // Data Ingestion & Processing Logic
   useEffect(() => {
     // 1. Reset Queue logic on Connection Change
-    // We want to clear stale data, but immediately fetch fresh data if connecting.
     queueRef.current = [];
     isProcessingRef.current = false;
     
@@ -121,27 +119,33 @@ export default function DatabaseBridge() {
 
       try {
         // PRE-ROLL BUFFER: Wait 8-10 seconds before speaking.
-        // This ensures we have a healthy buffer of text from the stream for continuity.
         if (shouldBufferRef.current) {
           console.log('Buffering stream for smooth playback (8s)...');
           await new Promise(resolve => setTimeout(resolve, 8000));
           shouldBufferRef.current = false;
         }
 
-        // While there are items and we are still connected
         while (queueRef.current.length > 0 && client.status === 'connected') {
           const rawText = queueRef.current[0];
           const style = voiceStyleRef.current;
 
           // Inject Stage Directions based on selected Style
+          // Note: If dynamic characters are used, the prompt handles the style,
+          // but we can still add global pacing cues here.
           let scriptedText = rawText;
-          if (style === 'breathy') {
-            scriptedText = `(soft inhale) ${rawText} ... (pause)`;
-          } else if (style === 'dramatic') {
-             scriptedText = `(slowly) ${rawText} ... (long pause)`;
+          
+          // Only add generic cues if it DOESN'T look like a dialogue line
+          // (Dialogue lines are handled by the character prompt)
+          const isDialogue = /^([A-Z][a-zA-Z0-9\s\(\)]+):/.test(rawText);
+
+          if (!isDialogue) {
+            if (style === 'breathy') {
+              scriptedText = `(soft inhale) ${rawText} ... (pause)`;
+            } else if (style === 'dramatic') {
+               scriptedText = `(slowly) ${rawText} ... (long pause)`;
+            }
           }
 
-          // Ensure we don't send empty strings
           if (!scriptedText || !scriptedText.trim()) {
             queueRef.current.shift();
             continue;
@@ -161,22 +165,18 @@ export default function DatabaseBridge() {
           queueRef.current.shift();
 
           // Dynamic delay calculation for human-like pacing
-          // We calculate roughly how long it takes to speak the text
           const wordCount = rawText.split(/\s+/).length;
-          // ~2.5 words per second is a slow, deliberate speaking rate
           const readTime = (wordCount / 2.5) * 1000;
           
-          // Inter-segment buffer (Breathing Room)
-          // We add this *after* the estimated read time to ensure the model finishes
-          // before we fire the next thought.
           let bufferBase = 2000; 
           if (style === 'natural') bufferBase = 1000;
           if (style === 'dramatic') bufferBase = 3000;
 
-          // Add slight randomness for organic feel
+          // Faster buffer for dialogue to keep conversation flowing
+          if (isDialogue) bufferBase = 500;
+
           const bufferTime = bufferBase + (Math.random() * 500); 
           
-          // Wait for read + buffer
           await new Promise(resolve => setTimeout(resolve, readTime + bufferTime));
         }
       } catch (e) {
@@ -184,7 +184,6 @@ export default function DatabaseBridge() {
       } finally {
         isProcessingRef.current = false;
         
-        // If queue still has items (e.g. added while waiting), restart loop
         if (queueRef.current.length > 0 && client.status === 'connected') {
            setTimeout(processQueueLoop, 100);
         }
@@ -217,12 +216,10 @@ export default function DatabaseBridge() {
 
       lastProcessedIdRef.current = data.id;
       
-      // Segment the text using the refined logic
       const segments = segmentText(textToRead);
       
       if (segments.length > 0) {
         queueRef.current.push(...segments);
-        // Trigger loop if not running
         processQueueLoop();
       }
     };
@@ -241,9 +238,6 @@ export default function DatabaseBridge() {
     };
 
     // --- SETUP WORKER & SUBSCRIPTION ---
-
-    // 1. Initialize Web Worker for background polling
-    // This ensures we keep fetching even if the tab is minimized.
     const blob = new Blob([workerScript], { type: 'application/javascript' });
     const worker = new Worker(URL.createObjectURL(blob));
     worker.onmessage = () => {
@@ -251,7 +245,6 @@ export default function DatabaseBridge() {
     };
     worker.postMessage('start');
 
-    // 2. Setup Realtime Subscription
     const channel = supabase
       .channel('bridge-realtime-opt')
       .on(
@@ -265,8 +258,6 @@ export default function DatabaseBridge() {
       )
       .subscribe();
 
-    // 3. Initial Fetch & Auto-Start
-    // Immediately fetch data so the user hears something right away
     fetchLatest();
 
     return () => {
