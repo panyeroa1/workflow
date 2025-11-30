@@ -24,8 +24,7 @@ export default function Header() {
           aria-label="Toggle Theme"
         >
           <span 
-            className="icon header-icon" 
-            style={{ color: theme === 'dark' ? '#FDB813' : 'var(--Blue-800)' }}
+            className={cn("icon header-icon theme-toggle-icon")} 
           >
             {theme === 'dark' ? 'light_mode' : 'dark_mode'}
           </span>

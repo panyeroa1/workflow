@@ -65,6 +65,8 @@ export class AudioStreamer {
   private startKeepAlive() {
     // Plays a silent/inaudible sound to keep the audio context active in background
     try {
+      if (this.keepAliveOscillator) return; // Already running
+
       const oscillator = this.context.createOscillator();
       const gain = this.context.createGain();
       
@@ -81,6 +83,24 @@ export class AudioStreamer {
       this.keepAliveOscillator = oscillator;
     } catch (e) {
       console.warn('Failed to start keep-alive oscillator', e);
+    }
+  }
+
+  /**
+   * Heartbeat function to ensure AudioContext stays running.
+   * Useful for mobile browsers or background tabs.
+   */
+  async checkAndResume() {
+    if (this.context.state === 'suspended' || (this.context.state as string) === 'interrupted') {
+      try {
+        await this.context.resume();
+        // Ensure keep-alive oscillator is present
+        if (!this.keepAliveOscillator) {
+          this.startKeepAlive();
+        }
+      } catch (e) {
+        console.error('Error resuming audio context:', e);
+      }
     }
   }
 

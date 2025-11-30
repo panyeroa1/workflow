@@ -134,6 +134,14 @@ header .header-right {
   transition: color 0.2s ease;
 }
 
+.theme-toggle-icon {
+  color: var(--Blue-800);
+}
+
+[data-theme='dark'] .theme-toggle-icon {
+  color: #FDB813;
+}
+
 .settings-icon {
   color: var(--text-secondary);
 }

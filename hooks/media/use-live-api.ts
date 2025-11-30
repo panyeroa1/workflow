@@ -82,6 +82,17 @@ export function useLiveApi({
     }
   }, [audioStreamerRef]);
 
+  // Audio Context Keep-Alive Heartbeat
+  useEffect(() => {
+    const keepAliveInterval = setInterval(() => {
+      if (audioStreamerRef.current) {
+        audioStreamerRef.current.checkAndResume();
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(keepAliveInterval);
+  }, []);
+
   // Sync background pad settings
   useEffect(() => {
     if (!audioStreamerRef.current) return;

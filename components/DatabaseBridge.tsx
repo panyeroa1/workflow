@@ -21,7 +21,6 @@ const workerScript = `
 const segmentText = (text: string): string[] => {
   if (!text) return [];
 
-  // Initial split to get raw sentences
   let sentences: string[] = [];
   
   // Robust segmentation using Intl.Segmenter (Standard in modern browsers)
@@ -32,10 +31,26 @@ const segmentText = (text: string): string[] => {
       // @ts-ignore
       sentences = Array.from(segmenter.segment(text)).map((s: any) => s.segment);
     } catch (e) {
-      sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
+      // Fallback if instantiation fails
+      sentences = [];
     }
-  } else {
-     sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
+  }
+  
+  // Fallback regex logic if Intl is missing or failed
+  if (sentences.length === 0) {
+      // Mask common abbreviations to prevent incorrect splitting
+      // Replaces '.' with a placeholder '\u0000' temporarily
+      let tempText = text
+        .replace(/\b(Mr|Mrs|Ms|Dr|Prof|Rev|Gen|Sen|Rep|Gov|St|Mt)\./g, '$1\u0000')
+        .replace(/e\.g\./g, 'e\u0000g\u0000')
+        .replace(/i\.e\./g, 'i\u0000e\u0000')
+        .replace(/No\./g, 'No\u0000');
+      
+      // Split by common sentence terminators (. ! ?) followed by space or end of string
+      const matches = tempText.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
+      
+      // Unmask the placeholder back to '.'
+      sentences = matches.map(s => s.replace(/\u0000/g, '.'));
   }
   
   const chunks: string[] = [];

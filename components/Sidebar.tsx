@@ -7,7 +7,7 @@ import c from 'classnames';
 import { useLiveAPIContext } from '@/contexts/LiveAPIContext';
 import { useEffect, useState, useRef } from 'react';
 import { supabase, EburonTTSCurrent } from '@/lib/supabase';
-import { SUPPORTED_LANGUAGES, AVAILABLE_VOICES } from '@/lib/constants';
+import { SUPPORTED_LANGUAGES, AVAILABLE_VOICES, CHARACTER_PRESETS } from '@/lib/constants';
 
 export default function Sidebar() {
   const { isSidebarOpen, toggleSidebar } = useUI();
@@ -78,6 +78,15 @@ export default function Sidebar() {
       setNewCharStyle('');
       // Keep voice selection or reset? Resetting to default for now
       setNewCharVoice(AVAILABLE_VOICES[0]);
+    }
+  };
+
+  const loadPreset = (presetName: string) => {
+    const preset = CHARACTER_PRESETS.find(p => p.name === presetName);
+    if (preset) {
+      setNewCharName(preset.name.split('(')[0].trim()); // Just the name part usually preferred
+      setNewCharStyle(preset.style);
+      setNewCharVoice(preset.voice);
     }
   };
 
@@ -234,6 +243,22 @@ export default function Sidebar() {
           <div className="sidebar-section">
             <h4 className="sidebar-section-title">Cast & Characters (Audio Drama)</h4>
             <div style={{background: 'var(--bg-panel-secondary)', padding: '12px', borderRadius: '8px', marginBottom: '12px'}}>
+              <div style={{marginBottom: '12px'}}>
+                <label style={{fontSize: '0.75rem', color: 'var(--accent-blue)', fontWeight: 'bold'}}>Load Preset Character</label>
+                <select 
+                  onChange={(e) => loadPreset(e.target.value)}
+                  defaultValue=""
+                  style={{fontSize: '0.85rem', padding: '8px', border: '1px solid var(--accent-blue)'}}
+                >
+                  <option value="" disabled>Select a persona...</option>
+                  {CHARACTER_PRESETS.map((p, i) => (
+                    <option key={i} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{borderTop: '1px solid var(--border-color)', margin: '12px 0'}}></div>
+
               <div style={{marginBottom: '8px'}}>
                 <label style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Character Name</label>
                 <input 
@@ -246,12 +271,12 @@ export default function Sidebar() {
               </div>
               <div style={{marginBottom: '8px'}}>
                 <label style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Description / Tone</label>
-                <input 
-                  type="text" 
+                <textarea 
                   placeholder="e.g. Gruff, whispered, anxious" 
                   value={newCharStyle}
                   onChange={(e) => setNewCharStyle(e.target.value)}
-                  style={{fontSize: '0.85rem', padding: '8px', marginBottom: '8px'}}
+                  rows={3}
+                  style={{fontSize: '0.85rem', padding: '8px', marginBottom: '8px', resize: 'vertical', fontFamily: 'inherit'}}
                 />
               </div>
               <div style={{marginBottom: '8px'}}>
@@ -299,9 +324,9 @@ export default function Sidebar() {
               )}
               {characters.map(char => (
                 <div key={char.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', background: 'var(--Neutral-20)', borderRadius: '6px', borderLeft: '3px solid var(--accent-blue)'}}>
-                  <div>
+                  <div style={{overflow: 'hidden'}}>
                     <div style={{fontSize: '0.85rem', fontWeight: 'bold'}}>{char.name}</div>
-                    <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>{char.style}</div>
+                    <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px'}}>{char.style}</div>
                     <div style={{fontSize: '0.75rem', color: 'var(--accent-blue)'}}>Voice: {char.voiceName}</div>
                   </div>
                   <button 
