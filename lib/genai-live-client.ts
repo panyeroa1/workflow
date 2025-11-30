@@ -99,7 +99,7 @@ export class GenAILiveClient {
     event: K,
     listener: LiveClientEventTypes[K]
   ): this {
-    this.emitter.on(event, listener);
+    this.emitter.on(event, listener as any);
     return this;
   }
 
@@ -107,7 +107,7 @@ export class GenAILiveClient {
     event: K,
     listener: LiveClientEventTypes[K]
   ): this {
-    this.emitter.off(event, listener);
+    this.emitter.off(event, listener as any);
     return this;
   }
 

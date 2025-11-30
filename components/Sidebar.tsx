@@ -5,7 +5,7 @@
 import { useSettings, useUI, VoiceStyle } from '@/lib/state';
 import c from 'classnames';
 import { useLiveAPIContext } from '@/contexts/LiveAPIContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase, EburonTTSCurrent } from '@/lib/supabase';
 import { SUPPORTED_LANGUAGES, AVAILABLE_VOICES } from '@/lib/constants';
 
@@ -15,11 +15,50 @@ export default function Sidebar() {
     language, setLanguage, detectedLanguage,
     voice, setVoice, 
     voiceStyle, setVoiceStyle,
-    backgroundPadEnabled, setBackgroundPadEnabled,
-    backgroundPadVolume, setBackgroundPadVolume
+    // BGM State
+    bgmUrls, bgmIndex, bgmVolume, bgmPlaying,
+    setBgmPlaying, setBgmVolume, setBgmIndex, addBgmUrl
   } = useSettings();
   const { connected } = useLiveAPIContext();
   const [dbData, setDbData] = useState<EburonTTSCurrent | null>(null);
+  
+  // BGM Local State
+  const [newBgmUrl, setNewBgmUrl] = useState('');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // BGM Logic
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = bgmVolume;
+    
+    if (bgmPlaying) {
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn('Audio play failed (interaction required?):', error);
+          setBgmPlaying(false);
+        });
+      }
+    } else {
+      audioRef.current.pause();
+    }
+  }, [bgmVolume, bgmPlaying, bgmIndex]); // Re-run on index change to ensure play state persists if enabled
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.src = bgmUrls[bgmIndex];
+      if (bgmPlaying) {
+        audioRef.current.play().catch(e => console.warn(e));
+      }
+    }
+  }, [bgmIndex, bgmUrls]);
+
+  const handleAddUrl = () => {
+    if (newBgmUrl.trim()) {
+      addBgmUrl(newBgmUrl.trim());
+      setNewBgmUrl('');
+    }
+  };
 
   useEffect(() => {
     // Initial fetch
@@ -176,49 +215,90 @@ export default function Sidebar() {
           </div>
 
           <div className="sidebar-section">
-            <h4 className="sidebar-section-title">Background Audio</h4>
+            <h4 className="sidebar-section-title">Background Audio (BGM)</h4>
+            
+            {/* Hidden Audio Element */}
+            <audio ref={audioRef} loop />
+
             <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                 <label style={{fontSize: '0.9rem'}}>Ambient Pad</label>
-                 <label className="switch" style={{position: 'relative', display: 'inline-block', width: '40px', height: '24px'}}>
-                   <input 
-                      type="checkbox" 
-                      checked={backgroundPadEnabled}
-                      onChange={(e) => setBackgroundPadEnabled(e.target.checked)}
-                      style={{opacity: 0, width: 0, height: 0}}
-                   />
-                   <span 
-                     style={{
-                       position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, 
-                       backgroundColor: backgroundPadEnabled ? 'var(--accent-blue)' : 'var(--Neutral-30)', 
-                       transition: '.4s', borderRadius: '24px'
-                     }}
-                   >
-                     <span style={{
-                       position: 'absolute', content: '""', height: '16px', width: '16px', 
-                       left: backgroundPadEnabled ? '20px' : '4px', bottom: '4px', 
-                       backgroundColor: 'white', transition: '.4s', borderRadius: '50%'
-                     }}></span>
-                   </span>
-                 </label>
-               </div>
                
-               {backgroundPadEnabled && (
-                 <div>
-                   <label style={{display: 'block', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>
-                     Volume: {Math.round(backgroundPadVolume * 100)}%
-                   </label>
-                   <input 
-                      type="range" 
-                      min="0" 
-                      max="0.5" 
-                      step="0.01" 
-                      value={backgroundPadVolume}
-                      onChange={(e) => setBackgroundPadVolume(parseFloat(e.target.value))}
-                      style={{width: '100%', cursor: 'pointer'}}
-                   />
+               {/* Controls */}
+               <div style={{display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg-panel-secondary)', padding: '10px', borderRadius: '8px'}}>
+                 <button 
+                    onClick={() => setBgmPlaying(!bgmPlaying)}
+                    style={{
+                      width: '40px', height: '40px', borderRadius: '50%', 
+                      background: bgmPlaying ? 'var(--accent-red)' : 'var(--accent-green)', 
+                      color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                    title={bgmPlaying ? "Pause" : "Play"}
+                 >
+                   <span className="material-symbols-outlined">{bgmPlaying ? 'pause' : 'play_arrow'}</span>
+                 </button>
+                 <button 
+                    onClick={() => { setBgmPlaying(false); if(audioRef.current) audioRef.current.currentTime = 0; }}
+                    style={{
+                      width: '40px', height: '40px', borderRadius: '50%', 
+                      background: 'var(--Neutral-30)', 
+                      color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                    title="Stop / Reset"
+                 >
+                   <span className="material-symbols-outlined">stop</span>
+                 </button>
+                 <div style={{flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '4px'}}>
+                    <label style={{fontSize: '0.7rem', color: 'var(--text-secondary)'}}>Volume: {Math.round(bgmVolume * 100)}%</label>
+                    <input 
+                      type="range" min="0" max="1" step="0.05" 
+                      value={bgmVolume} 
+                      onChange={(e) => setBgmVolume(parseFloat(e.target.value))}
+                      style={{width: '100%', height: '4px'}}
+                    />
                  </div>
-               )}
+               </div>
+
+               {/* Track List */}
+               <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                 <label style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Select Track</label>
+                 <select 
+                    value={bgmIndex} 
+                    onChange={(e) => {
+                      setBgmIndex(parseInt(e.target.value));
+                      // If changing track, auto play if already playing
+                      if (bgmPlaying && audioRef.current) {
+                         // Logic handled by effect
+                      }
+                    }}
+                    style={{fontSize: '0.85rem', padding: '8px'}}
+                 >
+                   {bgmUrls.map((url, idx) => {
+                      const name = url.split('/').pop() || `Track ${idx + 1}`;
+                      return <option key={idx} value={idx}>{name}</option>;
+                   })}
+                 </select>
+               </div>
+
+               {/* Add URL */}
+               <div style={{display: 'flex', gap: '8px'}}>
+                 <input 
+                    type="text" 
+                    placeholder="https://... (Add Audio URL)" 
+                    value={newBgmUrl}
+                    onChange={(e) => setNewBgmUrl(e.target.value)}
+                    style={{flexGrow: 1, fontSize: '0.85rem', padding: '8px'}}
+                 />
+                 <button 
+                    onClick={handleAddUrl}
+                    style={{
+                      background: 'var(--Blue-500)', color: 'white', 
+                      borderRadius: '8px', width: '40px', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                    title="Add to Playlist"
+                 >
+                   <span className="material-symbols-outlined">add</span>
+                 </button>
+               </div>
             </div>
           </div>
           

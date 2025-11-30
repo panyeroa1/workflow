@@ -68,6 +68,7 @@ export const SUPPORTED_LANGUAGES = [
   'Spanish',
   'Swedish',
   'Tagalog',
+  'Tagalog (Taglish)',
   'Thai',
   'Turkish',
   'Ukrainian',
