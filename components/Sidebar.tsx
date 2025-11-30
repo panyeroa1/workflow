@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { useSettings, useUI, VoiceStyle } from '@/lib/state';
+import { useSettings, useUI, VoiceStyle, Character } from '@/lib/state';
 import c from 'classnames';
 import { useLiveAPIContext } from '@/contexts/LiveAPIContext';
 import { useEffect, useState, useRef } from 'react';
@@ -16,7 +16,7 @@ export default function Sidebar() {
     voice, setVoice, 
     voiceStyle, setVoiceStyle,
     // Characters
-    characters, addCharacter, removeCharacter,
+    characters, addCharacter, updateCharacter, removeCharacter,
     // BGM State
     bgmUrls, bgmIndex, bgmVolume, bgmPlaying,
     setBgmPlaying, setBgmVolume, setBgmIndex, addBgmUrl
@@ -29,6 +29,7 @@ export default function Sidebar() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Character Local State
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newCharName, setNewCharName] = useState('');
   const [newCharStyle, setNewCharStyle] = useState('');
   const [newCharVoice, setNewCharVoice] = useState(AVAILABLE_VOICES[0]);
@@ -67,18 +68,44 @@ export default function Sidebar() {
     }
   };
 
-  const handleAddCharacter = () => {
+  const handleSaveCharacter = () => {
     if (newCharName.trim() && newCharStyle.trim()) {
-      addCharacter({
-        name: newCharName.trim(),
-        style: newCharStyle.trim(),
-        voiceName: newCharVoice
-      });
+      if (editingId) {
+        // Update existing
+        updateCharacter(editingId, {
+          name: newCharName.trim(),
+          style: newCharStyle.trim(),
+          voiceName: newCharVoice
+        });
+        setEditingId(null);
+      } else {
+        // Add new
+        addCharacter({
+          name: newCharName.trim(),
+          style: newCharStyle.trim(),
+          voiceName: newCharVoice
+        });
+      }
+      
+      // Reset form
       setNewCharName('');
       setNewCharStyle('');
-      // Keep voice selection or reset? Resetting to default for now
       setNewCharVoice(AVAILABLE_VOICES[0]);
     }
+  };
+
+  const handleEditCharacter = (char: Character) => {
+    setEditingId(char.id);
+    setNewCharName(char.name);
+    setNewCharStyle(char.style);
+    setNewCharVoice(char.voiceName);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setNewCharName('');
+    setNewCharStyle('');
+    setNewCharVoice(AVAILABLE_VOICES[0]);
   };
 
   const loadPreset = (presetName: string) => {
@@ -248,6 +275,7 @@ export default function Sidebar() {
                 <select 
                   onChange={(e) => loadPreset(e.target.value)}
                   defaultValue=""
+                  disabled={!!editingId} // Disable presets while editing
                   style={{fontSize: '0.85rem', padding: '8px', border: '1px solid var(--accent-blue)'}}
                 >
                   <option value="" disabled>Select a persona...</option>
@@ -298,22 +326,42 @@ export default function Sidebar() {
                   ))}
                 </select>
               </div>
-              <button 
-                onClick={handleAddCharacter}
-                disabled={!newCharName || !newCharStyle}
-                style={{
-                  width: '100%',
-                  background: 'var(--Blue-500)', 
-                  color: 'white', 
-                  borderRadius: '6px', 
-                  padding: '8px',
-                  opacity: (!newCharName || !newCharStyle) ? 0.5 : 1,
-                  fontSize: '0.85rem',
-                  fontWeight: 'bold'
-                }}
-              >
-                + Add Character
-              </button>
+              
+              <div style={{display: 'flex', gap: '8px'}}>
+                {editingId && (
+                  <button 
+                    onClick={handleCancelEdit}
+                    style={{
+                      flexGrow: 1,
+                      background: 'var(--Neutral-30)', 
+                      color: 'var(--text-main)', 
+                      borderRadius: '6px', 
+                      padding: '8px',
+                      fontSize: '0.85rem',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button 
+                  onClick={handleSaveCharacter}
+                  disabled={!newCharName || !newCharStyle}
+                  style={{
+                    flexGrow: 2,
+                    background: editingId ? 'var(--accent-green)' : 'var(--Blue-500)', 
+                    color: 'white', 
+                    borderRadius: '6px', 
+                    padding: '8px',
+                    opacity: (!newCharName || !newCharStyle) ? 0.5 : 1,
+                    fontSize: '0.85rem',
+                    fontWeight: 'bold',
+                    transition: 'background-color 0.3s'
+                  }}
+                >
+                  {editingId ? 'Update Character' : '+ Add Character'}
+                </button>
+              </div>
             </div>
 
             <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
@@ -323,18 +371,36 @@ export default function Sidebar() {
                  </div>
               )}
               {characters.map(char => (
-                <div key={char.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', background: 'var(--Neutral-20)', borderRadius: '6px', borderLeft: '3px solid var(--accent-blue)'}}>
-                  <div style={{overflow: 'hidden'}}>
+                <div key={char.id} style={{
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  padding: '8px', 
+                  background: editingId === char.id ? 'var(--active-bg-subtle)' : 'var(--Neutral-20)', 
+                  borderRadius: '6px', 
+                  borderLeft: `3px solid ${editingId === char.id ? 'var(--accent-green)' : 'var(--accent-blue)'}`
+                }}>
+                  <div style={{overflow: 'hidden', flexGrow: 1}}>
                     <div style={{fontSize: '0.85rem', fontWeight: 'bold'}}>{char.name}</div>
-                    <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px'}}>{char.style}</div>
+                    <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px'}}>{char.style}</div>
                     <div style={{fontSize: '0.75rem', color: 'var(--accent-blue)'}}>Voice: {char.voiceName}</div>
                   </div>
-                  <button 
-                    onClick={() => removeCharacter(char.id)}
-                    style={{color: 'var(--Red-400)'}}
-                  >
-                    <span className="material-symbols-outlined" style={{fontSize: '18px'}}>delete</span>
-                  </button>
+                  <div style={{display: 'flex', gap: '4px'}}>
+                    <button 
+                      onClick={() => handleEditCharacter(char)}
+                      title="Edit"
+                      style={{color: 'var(--text-secondary)'}}
+                    >
+                      <span className="material-symbols-outlined" style={{fontSize: '18px'}}>edit</span>
+                    </button>
+                    <button 
+                      onClick={() => removeCharacter(char.id)}
+                      title="Delete"
+                      style={{color: 'var(--Red-400)'}}
+                    >
+                      <span className="material-symbols-outlined" style={{fontSize: '18px'}}>delete</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

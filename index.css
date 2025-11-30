@@ -135,11 +135,11 @@ header .header-right {
 }
 
 .theme-toggle-icon {
-  color: var(--Blue-800);
+  color: var(--accent-blue);
 }
 
 [data-theme='dark'] .theme-toggle-icon {
-  color: #FDB813;
+  color: var(--accent-red);
 }
 
 .settings-icon {

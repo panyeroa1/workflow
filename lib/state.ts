@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { DEFAULT_LIVE_API_MODEL, DEFAULT_VOICE } from './constants';
 import {
   FunctionResponse,
@@ -23,123 +24,77 @@ export interface Character {
 
 const generateSystemPrompt = (language: string, characters: Character[] = []) => {
   const castSection = characters.length > 0 ? `
-CAST & VOICES (Dynamic Roleplay):
-The following characters appear in the script. When you read a line prefixed with their name (e.g., "${characters[0].name}: ..."), INSTANTLY switch your vocal persona to match their description and voice reference.
+CAST & VOICES (Dynamic Radio Drama):
+The following characters appear in the script. When you read a line prefixed with their name (e.g., "${characters[0].name}: ..."), INSTANTLY switch your vocal persona.
 
 ${characters.map(c => `• **${c.name}**:
   - Voice Reference: ${c.voiceName} (Mimic the timbre/pitch of this voice)
-  - Style/Tone: ${c.style}`).join('\n')}
+  - Style/Tone: ${c.style}
+  - **Mic Position/Volume**: ${c.name.toLowerCase().includes('caller') || c.style.toLowerCase().includes('phone') ? 'Simulate PHONE CALLER (Thinner EQ, slightly lower volume/distant, 80% volume)' : 'STUDIO MIC (Rich, full presence, clear, 100% volume)'}`).join('\n')}
 
 If a line has no prefix, use the default NARRATOR voice (Warm, authoritative, engaging).
 ` : '';
 
   return `
-ROLE: Elite Simultaneous Interpreter & Voice Actor
+ROLE: Elite Simultaneous Interpreter & Radio Drama Actor
 TARGET LANGUAGE: [${language || 'English'}]
 
 OBJECTIVE:
-Translate the incoming text segments into [${language}] and perform them aloud in a way that MATCHES THE SCENE, EMOTION, and INTENT.
+Translate the incoming text segments into [${language}] and perform them aloud as a HIGH-PRODUCTION RADIO DRAMA / PODCAST.
 
 ${castSection}
 
-1. MEANING-CENTRIC (NOT literal):
-   - Do NOT translate word-for-word.
-   - Preserve the *spirit, emotional weight, and theological/motivational intent* of the message.
-   - If a literal translation sounds awkward or weak in [${language}], rewrite it so it sounds powerful, natural, and true to the original meaning.
+1. RADIO DRAMA PACING (CRITICAL):
+   - **NO DEAD AIR.** Keep the energy moving like a live broadcast.
+   - **Pauses**: Keep them SHORT and natural (quick breaths or beats), unless explicitly marked [long pause]. Avoid "reading" pauses.
+   - **Interactions**: If two characters are talking, keep the gap between them TIGHT. Overlap slightly if it's high energy.
+   - **Flow**: Connect thoughts smoothly. Do not stop disjointedly between segments.
 
-2. SEGMENTED DELIVERY:
-   - Treat each input segment as ONE complete thought or scene beat.
-   - Finish the idea clearly in [${language}] with a natural emotional landing (closure, suspense, comfort, etc., depending on the scene).
-   - Avoid cutting thoughts mid-emotion; each segment should feel like a purposeful line.
+2. SCENE-AWARE PERFORMANCE:
+   - **Caller / Phone**: Simulate a phone line—thinner voice, slightly distant, more hesitant or candid.
+   - **DJ / Host**: Sound close to the mic, warm, compressed, intimate (proximity effect).
+   - **Emotion**:
+     - *Argument*: Faster pace, interruptions, sharp tone.
+     - *Comfort*: Slower, softer, warm tone, but NO long silences.
+     - *Comedy*: Punchy, bright, energetic.
 
-3. SCENE-AWARE PERFORMANCE:
-   Read the content and *infer the scene*:
-   - Is this a **gentle comfort moment**?
-   - A **high-energy rally/exhortation**?
-   - A **teaching/explanation**?
-   - A **storytelling/narration**?
-   - A **prayer or worship moment**?
-   - A **rebuke, warning, or confrontation**?
-   Match your delivery to that scene.
+3. SOUND EFFECTS & ADLIBS (PERFORM THESE):
+   - If the script has **[laugh]**, **[chuckle]**, **[sigh]**, **[gasp]**, **[cry]** -> **PERFORM THE SOUND AUDIBLY**.
+     - Do NOT say the word "laugh". Actually make a laughing sound.
+   - If there are radio adlibs (e.g., "Ayan!", "Naku po!", "Grabe!"), deliver them with high personality and flair.
+   - Treat text in parentheses like (laughing) as an acting direction to perform WHILE speaking.
 
-   Examples of MODE ADAPTATION:
-   - **Teaching / Explaining**: 
-     - Steady, clear, patient.
-     - Moderate pace, warm and grounded.
-     - Emphasis on clarity and understanding.
-   - **Storytelling / Testimony**:
-     - More narrative, intimate, and visual.
-     - Vary pace to build suspense, soften on emotional moments.
-   - **Comfort / Healing / Consolation**:
-     - Softer, slower, warm, and reassuring.
-     - Gentle tone, longer pauses to let the words sink in.
-   - **Exhortation / Battle Cry / Breakthrough**:
-     - Stronger projection, higher energy.
-     - Punchy phrases, rising intensity, shorter pauses.
-   - **Prayer / Worship**:
-     - Reverent, tender, focused.
-     - Slower rhythm, soft rises and falls, more breath and depth.
-   - **Warning / Prophetic / Confronting Sin**:
-     - Firm, serious, controlled.
-     - Heavy pauses, deep conviction, but still compassionate.
+4. MEANING-CENTRIC TRANSLATION:
+   - Preserve the *spirit and emotional weight*.
+   - Use natural local idioms (e.g., natural Taglish flow for PH context).
+   - Make it sound conversational, not like a read script.
 
-   Always let the **scene and emotion in the text** dictate:
-   - Volume (soft vs loud)
-   - Pace (slow vs fast)
-   - Intensity (calm vs fiery)
-   - Warmth (clinical vs very personal)
+⛔️ CRITICAL RULE – TECHNICAL DIRECTIONS ⛔️
+- **(pause)**, **[break]**: Take a SHORT breath beat (0.5s). Do NOT create awkward silence.
+- **(fade)**, **(music)**: Ignore these technically, just adjust your voice to fade out if needed.
+- **Do NOT read technical tags** like "Voice: ..." -> Just DO the action.
 
-4. PRONUNCIATION-AWARE:
-   - Use a **native-sounding accent** and clear articulation in [${language}].
-   - Pronounce names, places, and theological terms accurately for the local context.
-   - If a name or term is better left in its original form (e.g., “Yahweh”, “Hallelujah”), keep it as is but pronounce it clearly and respectfully.
-
-⛔️ CRITICAL RULE – SILENT STAGE DIRECTIONS (DO NOT SPEAK) ⛔️
-The input may contain stage directions in parentheses () or brackets [].
-
-- **NEVER READ THESE ALOUD.**
-- **ACT THEM OUT INSTEAD.**
-
-Examples:
-- If you see: **(soft inhale)** → take a gentle breath into the mic, do NOT say “soft inhale”.
-- If you see: **(pause)** or **[pause]** → create a real silence of appropriate length, do NOT say “pause”.
-- If you see: **(whispers)** or **[whisper]** → lower your volume and move into a whisper.
-- If you see: **(louder)** or **[build up]** → increase intensity and projection.
-- If you see: **(tearing up)**, **(smiles)**, **(grieving)**:
-  - Adjust your tone, pacing, and breath to reflect that emotion.
-  - Do NOT say the cue itself.
-
-VOICE PERSONA – THE CHARISMATIC, SCENE-AWARE ORATOR:
-- You are a **charismatic preacher / motivational speaker** whose style ADAPTS to the scene.
-- **Dynamics**:
-  - You can glide from a **soft, intense near-whisper** to a **full, powerful proclamation** when the moment calls for it.
-  - Use volume and intensity to underline the emotional arcs of the message.
-- **Rhythm**:
-  - Use a preaching cadence when appropriate: repetitive phrases, builds, waves of emphasis.
-  - But also know when to slow down into a still, reflective rhythm for intimate or heavy moments.
-- **Tone**:
-  - High conviction, authoritative, anchored.
-  - Yet always empathetic, human, and emotionally tuned into the scene.
-- **Style**:
-  - Use:
-    - Staccato lists for emphasis.
-    - Theatrical but sincere pauses.
-    - Emotional range: hope, grief, joy, urgency, tenderness, holy fear, celebration.
+VOICE PERSONA – THE VERSATILE ACTOR:
+- You are a one-person audio drama team.
+- **Volume Control**:
+  - Host/Narrator = 100% Volume.
+  - Callers = 75-80% Volume + Phone EQ simulation.
+  - Asides/Whispers = 60% Volume.
 
 PERFORMANCE PRIORITIES:
-1. Be **faithful to the meaning**.
-2. Be **natural and powerful** in [${language}].
-3. Be **scene-aware and emotionally accurate**.
-4. Make it sound like a **real human** speaking to real people in the moment.
+1. **Flow** (Avoid awkward pauses).
+2. **Character Distinction** (Clear difference between Host vs Caller).
+3. **Emotional Authenticity** (Adlibs, laughs, breaths).
+4. **Entertainment Value**.
 
 Now, translate and perform the incoming text segments accordingly.
 `;
 };
 
 /**
- * Settings
+ * Settings State Definition
  */
-export const useSettings = create<{
+interface SettingsState {
   systemPrompt: string;
   model: string;
   voice: string;
@@ -165,6 +120,7 @@ export const useSettings = create<{
   setDetectedLanguage: (language: string | null) => void;
   // Character Setters
   addCharacter: (character: Omit<Character, 'id'>) => void;
+  updateCharacter: (id: string, updates: Partial<Omit<Character, 'id'>>) => void;
   removeCharacter: (id: string) => void;
   // BGM Setters
   addBgmUrl: (url: string) => void;
@@ -174,62 +130,90 @@ export const useSettings = create<{
   // Pad Setters
   setBackgroundPadEnabled: (enabled: boolean) => void;
   setBackgroundPadVolume: (volume: number) => void;
-}>(set => ({
-  language: 'Tagalog (Taglish)',
-  detectedLanguage: null,
-  characters: [],
-  systemPrompt: generateSystemPrompt('Tagalog (Taglish)', []),
-  model: DEFAULT_LIVE_API_MODEL,
-  voice: DEFAULT_VOICE,
-  voiceStyle: 'breathy',
-  
-  // BGM Init
-  bgmUrls: [
-    'https://sebmossplzlkfdznzsoo.supabase.co/storage/v1/object/public/eburon_audio/bgm.m4a',
-    'https://sebmossplzlkfdznzsoo.supabase.co/storage/v1/object/public/eburon_audio/bgm2.mp3',
-    'https://sebmossplzlkfdznzsoo.supabase.co/storage/v1/object/public/eburon_audio/bgm3.m4a'
-  ],
-  bgmIndex: 0,
-  bgmVolume: 0.5,
-  bgmPlaying: false,
+}
 
-  // Pad Init
-  backgroundPadEnabled: false,
-  backgroundPadVolume: 0.2,
+export const useSettings = create<SettingsState>()(
+  persist(
+    (set) => ({
+      language: 'Tagalog (Taglish)',
+      detectedLanguage: null,
+      characters: [],
+      systemPrompt: generateSystemPrompt('Tagalog (Taglish)', []),
+      model: DEFAULT_LIVE_API_MODEL,
+      voice: DEFAULT_VOICE,
+      voiceStyle: 'breathy',
+      
+      // BGM Init
+      bgmUrls: [
+        'https://sebmossplzlkfdznzsoo.supabase.co/storage/v1/object/public/eburon_audio/bgm.m4a',
+        'https://sebmossplzlkfdznzsoo.supabase.co/storage/v1/object/public/eburon_audio/bgm2.mp3',
+        'https://sebmossplzlkfdznzsoo.supabase.co/storage/v1/object/public/eburon_audio/bgm3.m4a'
+      ],
+      bgmIndex: 0,
+      bgmVolume: 0.5,
+      bgmPlaying: false,
 
-  setSystemPrompt: prompt => set({ systemPrompt: prompt }),
-  setModel: model => set({ model }),
-  setVoice: voice => set({ voice }),
-  setVoiceStyle: voiceStyle => set({ voiceStyle }),
-  setLanguage: language => set(state => ({ 
-    language, 
-    systemPrompt: generateSystemPrompt(language, state.characters) 
-  })),
-  setDetectedLanguage: detectedLanguage => set({ detectedLanguage }),
-  
-  addCharacter: (char) => set(state => {
-    const newChars = [...state.characters, { ...char, id: Math.random().toString(36).substr(2, 9) }];
-    return {
-      characters: newChars,
-      systemPrompt: generateSystemPrompt(state.language, newChars)
-    };
-  }),
-  removeCharacter: (id) => set(state => {
-    const newChars = state.characters.filter(c => c.id !== id);
-    return {
-      characters: newChars,
-      systemPrompt: generateSystemPrompt(state.language, newChars)
-    };
-  }),
+      // Pad Init
+      backgroundPadEnabled: false,
+      backgroundPadVolume: 0.2,
 
-  addBgmUrl: url => set(state => ({ bgmUrls: [...state.bgmUrls, url] })),
-  setBgmIndex: index => set({ bgmIndex: index }),
-  setBgmVolume: volume => set({ bgmVolume: volume }),
-  setBgmPlaying: playing => set({ bgmPlaying: playing }),
+      setSystemPrompt: prompt => set({ systemPrompt: prompt }),
+      setModel: model => set({ model }),
+      setVoice: voice => set({ voice }),
+      setVoiceStyle: voiceStyle => set({ voiceStyle }),
+      setLanguage: language => set(state => ({ 
+        language, 
+        systemPrompt: generateSystemPrompt(language, state.characters) 
+      })),
+      setDetectedLanguage: detectedLanguage => set({ detectedLanguage }),
+      
+      addCharacter: (char) => set(state => {
+        const newChars = [...state.characters, { ...char, id: Math.random().toString(36).substr(2, 9) }];
+        return {
+          characters: newChars,
+          systemPrompt: generateSystemPrompt(state.language, newChars)
+        };
+      }),
 
-  setBackgroundPadEnabled: enabled => set({ backgroundPadEnabled: enabled }),
-  setBackgroundPadVolume: volume => set({ backgroundPadVolume: volume }),
-}));
+      updateCharacter: (id, updates) => set(state => {
+        const newChars = state.characters.map(c => 
+          c.id === id ? { ...c, ...updates } : c
+        );
+        return {
+          characters: newChars,
+          systemPrompt: generateSystemPrompt(state.language, newChars)
+        };
+      }),
+
+      removeCharacter: (id) => set(state => {
+        const newChars = state.characters.filter(c => c.id !== id);
+        return {
+          characters: newChars,
+          systemPrompt: generateSystemPrompt(state.language, newChars)
+        };
+      }),
+
+      addBgmUrl: url => set(state => ({ bgmUrls: [...state.bgmUrls, url] })),
+      setBgmIndex: index => set({ bgmIndex: index }),
+      setBgmVolume: volume => set({ bgmVolume: volume }),
+      setBgmPlaying: playing => set({ bgmPlaying: playing }),
+
+      setBackgroundPadEnabled: enabled => set({ backgroundPadEnabled: enabled }),
+      setBackgroundPadVolume: volume => set({ backgroundPadVolume: volume }),
+    }),
+    {
+      name: 'eburon-settings-storage', // unique name for local storage
+      partialize: (state) => ({
+        // Only persist these fields
+        language: state.language,
+        voice: state.voice,
+        voiceStyle: state.voiceStyle,
+        characters: state.characters,
+        bgmUrls: state.bgmUrls,
+      }),
+    }
+  )
+);
 
 /**
  * UI

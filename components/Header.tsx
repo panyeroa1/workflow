@@ -1,4 +1,3 @@
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -24,7 +23,7 @@ export default function Header() {
           aria-label="Toggle Theme"
         >
           <span 
-            className={cn("icon header-icon theme-toggle-icon")} 
+            className="icon header-icon theme-toggle-icon"
           >
             {theme === 'dark' ? 'light_mode' : 'dark_mode'}
           </span>
