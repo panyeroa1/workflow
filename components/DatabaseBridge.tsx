@@ -23,7 +23,8 @@ const segmentText = (text: string): string[] => {
 
   let sentences: string[] = [];
 
-  // Robust segmentation using Intl.Segmenter
+  // Robust segmentation using Intl.Segmenter (Standard in modern browsers)
+  // This handles "Dr. Smith", "e.g.", and other abbreviation cases correctly.
   if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
     try {
       // @ts-ignore
@@ -31,35 +32,47 @@ const segmentText = (text: string): string[] => {
       // @ts-ignore
       sentences = Array.from(segmenter.segment(text)).map((s: any) => s.segment);
     } catch (e) {
-      // Fallback if instantiation fails
+      // Fallback regex if instantiation fails (handles basic punctuation)
       sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
     }
   } else {
-     // Fallback Regex
      sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
   }
   
   const chunks: string[] = [];
   let currentChunk = '';
-  let sentenceCount = 0;
+  
+  // Heuristics for "Theatrical" pacing:
+  // We want to group short punchy sentences, but isolate long complex ones.
+  const SOFT_LIMIT = 100; // Try to wrap after this
+  const HARD_LIMIT = 220; // Force wrap close to this
 
   for (const sentence of sentences) {
     const cleanSentence = sentence.trim();
     if (!cleanSentence) continue;
     
-    // Add space if appending to existing chunk
-    if (currentChunk) currentChunk += ' ';
-    currentChunk += cleanSentence;
-    sentenceCount++;
+    // Check if adding this sentence would exceed limits
+    const potentialLength = currentChunk.length + cleanSentence.length;
+
+    // Logic:
+    // 1. If we have nothing, just start.
+    // 2. If the current chunk plus next sentence is massive (Hard Limit), push current and start new.
+    // 3. If the current chunk is already a decent size (Soft Limit) and we have a sentence end, push it.
     
-    // Chunking heuristics for natural pauses:
-    // STRICTLY sentence-based flow.
-    // If chunk is getting too long (> 200 chars) OR we have 2 sentences, push it.
-    // This allows better flow than waiting for massive paragraphs.
-    if (sentenceCount >= 2 || currentChunk.length > 200) {
-      chunks.push(currentChunk.trim());
-      currentChunk = '';
-      sentenceCount = 0;
+    if (currentChunk.length > 0) {
+      if (potentialLength > HARD_LIMIT) {
+        chunks.push(currentChunk.trim());
+        currentChunk = cleanSentence;
+      } else if (currentChunk.length > SOFT_LIMIT) {
+        // We are in the "sweet spot", let's push the previous thought and start a new one
+        chunks.push(currentChunk.trim());
+        currentChunk = cleanSentence;
+      } else {
+        // Still short, append it for better flow (grouping short sentences)
+        currentChunk += ' ' + cleanSentence;
+      }
+    } else {
+      currentChunk = cleanSentence;
     }
   }
   
@@ -91,10 +104,13 @@ export default function DatabaseBridge() {
 
   // Data Ingestion & Processing Logic
   useEffect(() => {
-    // Clear queue on mount/connect to ensure we start fresh
+    // 1. Reset Queue logic on Connection Change
+    // We want to clear stale data, but immediately fetch fresh data if connecting.
     queueRef.current = [];
     isProcessingRef.current = false;
-    shouldBufferRef.current = false;
+    
+    // Trigger buffer only on fresh start
+    shouldBufferRef.current = true;
 
     if (!connected) return;
 
@@ -104,8 +120,8 @@ export default function DatabaseBridge() {
       isProcessingRef.current = true;
 
       try {
-        // PRE-ROLL BUFFER: If flagged, wait 8-10 seconds before starting the loop.
-        // This allows data to accumulate for a continuous stream.
+        // PRE-ROLL BUFFER: Wait 8-10 seconds before speaking.
+        // This ensures we have a healthy buffer of text from the stream for continuity.
         if (shouldBufferRef.current) {
           console.log('Buffering stream for smooth playback (8s)...');
           await new Promise(resolve => setTimeout(resolve, 8000));
@@ -113,7 +129,7 @@ export default function DatabaseBridge() {
         }
 
         // While there are items and we are still connected
-        while (queueRef.current.length > 0) {
+        while (queueRef.current.length > 0 && client.status === 'connected') {
           const rawText = queueRef.current[0];
           const style = voiceStyleRef.current;
 
@@ -131,44 +147,52 @@ export default function DatabaseBridge() {
             continue;
           }
 
-          // Log to console
+          // Log to console (Visuals)
           addTurn({
             role: 'system',
             text: scriptedText,
             isFinal: true
           });
 
-          // Send to Gemini Live
+          // Send to Gemini Live (Audio)
           client.send([{ text: scriptedText }]);
 
           // Remove the item we just sent
           queueRef.current.shift();
 
           // Dynamic delay calculation for human-like pacing
+          // We calculate roughly how long it takes to speak the text
           const wordCount = rawText.split(/\s+/).length;
-          // ~2.5 words per second + overhead
+          // ~2.5 words per second is a slow, deliberate speaking rate
           const readTime = (wordCount / 2.5) * 1000;
           
-          // Inter-segment buffer (breathing room)
-          let bufferBase = 4000; 
-          if (style === 'natural') bufferBase = 1500;
-          if (style === 'dramatic') bufferBase = 6000;
+          // Inter-segment buffer (Breathing Room)
+          // We add this *after* the estimated read time to ensure the model finishes
+          // before we fire the next thought.
+          let bufferBase = 2000; 
+          if (style === 'natural') bufferBase = 1000;
+          if (style === 'dramatic') bufferBase = 3000;
 
-          const bufferTime = bufferBase + (Math.random() * 1000); 
-          const totalDelay = readTime + bufferTime;
+          // Add slight randomness for organic feel
+          const bufferTime = bufferBase + (Math.random() * 500); 
           
-          await new Promise(resolve => setTimeout(resolve, totalDelay));
+          // Wait for read + buffer
+          await new Promise(resolve => setTimeout(resolve, readTime + bufferTime));
         }
       } catch (e) {
         console.error('Error in processing loop:', e);
       } finally {
         isProcessingRef.current = false;
+        
+        // If queue still has items (e.g. added while waiting), restart loop
+        if (queueRef.current.length > 0 && client.status === 'connected') {
+           setTimeout(processQueueLoop, 100);
+        }
       }
     };
 
     const processNewData = (data: EburonTTSCurrent) => {
       // AUTO DETECTION LOGIC
-      // If the incoming data has a target language we support, and it differs from current, update it.
       if (data.target_language && SUPPORTED_LANGUAGES.includes(data.target_language)) {
         if (languageRef.current !== data.target_language) {
           console.log(`Auto-detected target language: ${data.target_language}`);
@@ -176,7 +200,6 @@ export default function DatabaseBridge() {
           setDetectedLanguage(data.target_language);
         }
       } else if (data.source_lang_label && SUPPORTED_LANGUAGES.includes(data.source_lang_label)) {
-        // Fallback: If no target specified but source is known (e.g. read original), detect that
         setDetectedLanguage(data.source_lang_label);
       }
 
@@ -194,16 +217,12 @@ export default function DatabaseBridge() {
 
       lastProcessedIdRef.current = data.id;
       
-      // Segment the text
+      // Segment the text using the refined logic
       const segments = segmentText(textToRead);
       
       if (segments.length > 0) {
-        // If queue was empty, trigger the buffer flag to ensure we wait before speaking
-        if (queueRef.current.length === 0) {
-          shouldBufferRef.current = true;
-        }
-
         queueRef.current.push(...segments);
+        // Trigger loop if not running
         processQueueLoop();
       }
     };
@@ -221,7 +240,10 @@ export default function DatabaseBridge() {
       }
     };
 
+    // --- SETUP WORKER & SUBSCRIPTION ---
+
     // 1. Initialize Web Worker for background polling
+    // This ensures we keep fetching even if the tab is minimized.
     const blob = new Blob([workerScript], { type: 'application/javascript' });
     const worker = new Worker(URL.createObjectURL(blob));
     worker.onmessage = () => {
@@ -243,7 +265,8 @@ export default function DatabaseBridge() {
       )
       .subscribe();
 
-    // 3. Initial Fetch
+    // 3. Initial Fetch & Auto-Start
+    // Immediately fetch data so the user hears something right away
     fetchLatest();
 
     return () => {
