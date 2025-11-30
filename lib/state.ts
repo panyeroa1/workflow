@@ -20,6 +20,8 @@ export interface Character {
   name: string;
   style: string;
   voiceName: string;
+  voiceUrl?: string; // Audio Reference URL
+  context?: string;  // Memory / Backstory
 }
 
 const generateSystemPrompt = (language: string, characters: Character[] = []) => {
@@ -29,7 +31,9 @@ The following characters appear in the script. When you read a line prefixed wit
 
 ${characters.map(c => `• **${c.name}**:
   - Voice Reference: ${c.voiceName} (Mimic the timbre/pitch of this voice)
+  - Audio Reference (Style/Vibe): ${c.voiceUrl || 'N/A'}
   - Style/Tone: ${c.style}
+  - **Memory & Context**: ${c.context || 'No specific backstory provided.'}
   - **Mic Position/Volume**: ${c.name.toLowerCase().includes('caller') || c.style.toLowerCase().includes('phone') ? 'Simulate PHONE CALLER (Thinner EQ, slightly lower volume/distant, 80% volume)' : 'STUDIO MIC (Rich, full presence, clear, 100% volume)'}`).join('\n')}
 
 If a line has no prefix, use the default NARRATOR voice (Warm, authoritative, engaging).

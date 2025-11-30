@@ -33,6 +33,8 @@ export default function Sidebar() {
   const [newCharName, setNewCharName] = useState('');
   const [newCharStyle, setNewCharStyle] = useState('');
   const [newCharVoice, setNewCharVoice] = useState(AVAILABLE_VOICES[0]);
+  const [newCharUrl, setNewCharUrl] = useState('');
+  const [newCharContext, setNewCharContext] = useState('');
 
   // BGM Logic
   useEffect(() => {
@@ -70,27 +72,29 @@ export default function Sidebar() {
 
   const handleSaveCharacter = () => {
     if (newCharName.trim() && newCharStyle.trim()) {
+      const charData = {
+        name: newCharName.trim(),
+        style: newCharStyle.trim(),
+        voiceName: newCharVoice,
+        voiceUrl: newCharUrl.trim(),
+        context: newCharContext.trim()
+      };
+
       if (editingId) {
         // Update existing
-        updateCharacter(editingId, {
-          name: newCharName.trim(),
-          style: newCharStyle.trim(),
-          voiceName: newCharVoice
-        });
+        updateCharacter(editingId, charData);
         setEditingId(null);
       } else {
         // Add new
-        addCharacter({
-          name: newCharName.trim(),
-          style: newCharStyle.trim(),
-          voiceName: newCharVoice
-        });
+        addCharacter(charData);
       }
       
       // Reset form
       setNewCharName('');
       setNewCharStyle('');
       setNewCharVoice(AVAILABLE_VOICES[0]);
+      setNewCharUrl('');
+      setNewCharContext('');
     }
   };
 
@@ -99,6 +103,8 @@ export default function Sidebar() {
     setNewCharName(char.name);
     setNewCharStyle(char.style);
     setNewCharVoice(char.voiceName);
+    setNewCharUrl(char.voiceUrl || '');
+    setNewCharContext(char.context || '');
   };
 
   const handleCancelEdit = () => {
@@ -106,6 +112,8 @@ export default function Sidebar() {
     setNewCharName('');
     setNewCharStyle('');
     setNewCharVoice(AVAILABLE_VOICES[0]);
+    setNewCharUrl('');
+    setNewCharContext('');
   };
 
   const loadPreset = (presetName: string) => {
@@ -303,7 +311,27 @@ export default function Sidebar() {
                   placeholder="e.g. Gruff, whispered, anxious" 
                   value={newCharStyle}
                   onChange={(e) => setNewCharStyle(e.target.value)}
-                  rows={3}
+                  rows={2}
+                  style={{fontSize: '0.85rem', padding: '8px', marginBottom: '8px', resize: 'vertical', fontFamily: 'inherit'}}
+                />
+              </div>
+              <div style={{marginBottom: '8px'}}>
+                <label style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Voice Reference Audio (URL)</label>
+                <input 
+                  type="text" 
+                  placeholder="https://... (Audio Sample)" 
+                  value={newCharUrl}
+                  onChange={(e) => setNewCharUrl(e.target.value)}
+                  style={{fontSize: '0.85rem', padding: '8px', marginBottom: '8px'}}
+                />
+              </div>
+              <div style={{marginBottom: '8px'}}>
+                <label style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Character Memory / Context</label>
+                <textarea 
+                  placeholder="Key facts this character knows..." 
+                  value={newCharContext}
+                  onChange={(e) => setNewCharContext(e.target.value)}
+                  rows={2}
                   style={{fontSize: '0.85rem', padding: '8px', marginBottom: '8px', resize: 'vertical', fontFamily: 'inherit'}}
                 />
               </div>

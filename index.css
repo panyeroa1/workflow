@@ -131,23 +131,31 @@ header .header-right {
 .header-icon {
   font-family: 'Material Symbols Outlined';
   font-size: 24px;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, transform 0.2s ease;
 }
 
+/* Theme Toggle Colors */
 .theme-toggle-icon {
-  color: var(--accent-blue);
+  color: var(--accent-blue); /* Moon (Dark mode active) */
 }
 
-[data-theme='dark'] .theme-toggle-icon {
-  color: var(--accent-red);
+[data-theme='light'] .theme-toggle-icon {
+  color: var(--accent-red); /* Sun (Light mode active) */
 }
 
+.theme-button:hover .theme-toggle-icon {
+  transform: rotate(15deg);
+}
+
+/* Settings Icon */
 .settings-icon {
   color: var(--text-secondary);
 }
 
 .settings-button:hover .settings-icon {
-  color: var(--accent-blue);
+  /* Gradient-like effect on hover using color rotation or simple accent switch */
+  color: var(--accent-green);
+  transform: rotate(45deg);
 }
 
 /* Streaming Console */
