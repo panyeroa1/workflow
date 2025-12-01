@@ -23,7 +23,7 @@ import ErrorScreen from './components/demo/ErrorScreen';
 import StreamingConsole from './components/demo/streaming-console/StreamingConsole';
 
 import Header from './components/Header';
-import Sidebar from './components/Sidebar';
+import SettingsPage from './components/SettingsPage'; // Changed import
 import { LiveAPIProvider } from './contexts/LiveAPIContext';
 import DatabaseBridge from './components/DatabaseBridge';
 import { useUI } from './lib/state';
@@ -48,7 +48,7 @@ function App() {
         <DatabaseBridge />
         <ErrorScreen />
         <Header />
-        <Sidebar />
+        <SettingsPage /> 
         <div className="streaming-console">
           <main>
             <div className="main-app-area">
