@@ -56,33 +56,11 @@ const ScriptReader = memo(({ text }: { text: string }) => {
   );
 });
 
-// Digital Clock Component
-const DigitalClock = () => {
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="digital-clock">
-      <div className="clock-time">
-        {time.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-      </div>
-      <div className="clock-date">
-        {time.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-      </div>
-    </div>
-  );
-};
-
 export default function StreamingConsole() {
   const { client, setConfig } = useLiveAPIContext();
   const { systemPrompt, voice } = useSettings();
   const { tools } = useTools();
   const turns = useLogStore(state => state.turns);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const config: any = {
@@ -94,7 +72,7 @@ export default function StreamingConsole() {
           },
         },
       },
-      inputAudioTranscription: {},
+      // Input audio transcription removed to enforce broadcast mode
       outputAudioTranscription: {},
       systemInstruction: {
         parts: [
@@ -125,27 +103,14 @@ export default function StreamingConsole() {
   }, [setConfig, systemPrompt, tools, voice]);
 
   useEffect(() => {
-    const { addTurn, updateLastTurn } = useLogStore.getState();
+    // We only listen to maintain protocol state, but we don't display transcriptions
+    // in the visualizer mode (iframe is covering this anyway).
+    // The logs are still kept in the store for the script reader if needed.
 
-    // We only care about errors or keeping the connection alive, 
-    // we do NOT want to log the transcription for the user to see in this specific mode.
-    // However, we still listen to maintain protocol state.
-
-    const handleInputTranscription = (text: string, isFinal: boolean) => {
-       // Suppressed for Script View
-    };
-
-    const handleOutputTranscription = (text: string, isFinal: boolean) => {
-       // Suppressed for Script View
-    };
-
-    const handleContent = (serverContent: LiveServerContent) => {
-       // Suppressed for Script View
-    };
-
-    const handleTurnComplete = () => {
-       // Suppressed
-    };
+    const handleInputTranscription = (text: string, isFinal: boolean) => {};
+    const handleOutputTranscription = (text: string, isFinal: boolean) => {};
+    const handleContent = (serverContent: LiveServerContent) => {};
+    const handleTurnComplete = () => {};
 
     client.on('inputTranscription', handleInputTranscription);
     client.on('outputTranscription', handleOutputTranscription);
@@ -160,42 +125,18 @@ export default function StreamingConsole() {
     };
   }, [client]);
 
-  // Scroll to bottom when turns change
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  });
-
-  // Filter: Only show "system" turns which contain our Script
-  const scriptTurns = turns.filter(t => t.role === 'system');
-
   return (
-    <div className="streaming-console-layout">
-      <DigitalClock />
-      
-      <div className="transcription-container">
-        {scriptTurns.length === 0 ? (
-          <div className="console-box empty">
-            <div className="waiting-placeholder">
-              <span className="material-symbols-outlined icon">auto_stories</span>
-              <p>Waiting for stream...</p>
-            </div>
-          </div>
-        ) : (
-          <div className="console-box">
-            <div className="transcription-view teleprompter-mode" ref={scrollRef}>
-              {scriptTurns.map((t, i) => (
-                <div key={i} className="transcription-entry system">
-                  <div className="transcription-text-content">
-                    <ScriptReader text={t.text} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+    <div className="streaming-console-layout" style={{width: '100%', height: '100%'}}>
+      <iframe 
+        src="https://eburon.ai/zoom/index.html" 
+        style={{
+          width: '100%', 
+          height: '100%', 
+          border: 'none', 
+          display: 'block'
+        }}
+        title="Eburon Visualizer"
+      />
     </div>
   );
 }

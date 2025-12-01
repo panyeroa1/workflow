@@ -1,7 +1,5 @@
 {
   "name": "orbitglobal",
   "description": "An interactive sandbox",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "requestFramePermissions": []
 }
