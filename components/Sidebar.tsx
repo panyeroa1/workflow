@@ -15,6 +15,7 @@ export default function Sidebar() {
     language, setLanguage, detectedLanguage,
     voice, setVoice, 
     voiceStyle, setVoiceStyle,
+    systemPrompt, setSystemPrompt,
     // Characters
     characters, addCharacter, updateCharacter, removeCharacter,
     // BGM State
@@ -271,6 +272,26 @@ export default function Sidebar() {
                   <option value="breathy">Breathy (Eburon Default)</option>
                   <option value="dramatic">Dramatic (Slow)</option>
                 </select>
+              </div>
+
+              <div style={{marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem'}}>
+                 <label style={{display: 'block', marginBottom: '8px', fontSize: '0.85rem'}}>System Prompt (Advanced)</label>
+                 <textarea 
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    rows={8}
+                    style={{
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace',
+                      whiteSpace: 'pre-wrap',
+                      resize: 'vertical',
+                      lineHeight: '1.4',
+                      background: 'var(--Neutral-5)'
+                    }}
+                 />
+                 <p style={{fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px'}}>
+                   Warning: Modifying language or characters will automatically regenerate this prompt.
+                 </p>
               </div>
             </fieldset>
           </div>
