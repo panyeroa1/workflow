@@ -135,12 +135,14 @@ header .header-right {
 }
 
 /* Theme Toggle Colors */
+/* Dark Mode Context (Default): Shows Sun Icon -> Warm Red */
 .theme-toggle-icon {
-  color: var(--accent-blue); /* Moon (Dark mode active) */
+  color: var(--accent-red); 
 }
 
+/* Light Mode Context: Shows Moon Icon -> Cool Blue */
 [data-theme='light'] .theme-toggle-icon {
-  color: var(--accent-red); /* Sun (Light mode active) */
+  color: var(--accent-blue);
 }
 
 .theme-button:hover .theme-toggle-icon {
@@ -153,9 +155,9 @@ header .header-right {
 }
 
 .settings-button:hover .settings-icon {
-  /* Gradient-like effect on hover using color rotation or simple accent switch */
+  /* Green accent on hover to complete the Blue-Green-Red triad */
   color: var(--accent-green);
-  transform: rotate(45deg);
+  transform: rotate(90deg);
 }
 
 /* Streaming Console */

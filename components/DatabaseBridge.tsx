@@ -117,34 +117,36 @@ export default function DatabaseBridge() {
   const isProcessingRef = useRef(false);
   const shouldBufferRef = useRef(false);
 
-  // Silence Watchdog: Auto-Prompt if queue is empty for > 7 seconds
+  // RADIO PRODUCER / WATCHDOG: Keeps the show running if dead air detected
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!connected) return;
+      if (!connected || client.status !== 'connected') return;
       
       const now = Date.now();
       const timeSinceActivity = now - lastActivityRef.current;
       
-      // If queue is empty AND it's been > 7 seconds AND we aren't currently processing a chunk
-      if (queueRef.current.length === 0 && timeSinceActivity > 7000 && !isProcessingRef.current) {
-        console.log('Silence detected. Injecting "Life Advice" nudge...');
+      // If queue is empty AND it's been > 6 seconds
+      if (queueRef.current.length === 0 && timeSinceActivity > 6000 && !isProcessingRef.current) {
+        console.log('Dead air detected. Producer injecting segment...');
         
-        // Push a nudge prompt into the queue
-        // Using [CONTINUE] signal as defined in system prompt
-        const nudgePrompt = `[System: Silence detected (7s). The stream is quiet. Based on the previous context, ad-lib a short, empathetic 'hugot' line or life advice to keep the audience engaged. Do not repeat the last story.]`;
+        // Random "Show Segments" to keep it alive
+        const segments = [
+          "[System: Silence. Do a 'Shoutout Segment'. Read imaginary greetings from listeners like 'Ate Girl from Cubao' or 'Kuya Joms from Dubai'. High energy!]",
+          "[System: Silence. Do a 'Joke Time' segment. Throw a cheesy or funny pick-up line. Laugh at your own joke.]",
+          "[System: Silence. Do a 'Real Talk / Hugot' segment. Give advice about love/relationships based on the previous story.]",
+          "[System: Silence. Tease the next part of the story. 'Abangan niyo ang susunod na kabanata! Wag bibitiw!']",
+          "[System: Silence. Check on the traffic or weather in a funny way. Ad-lib Manila context.]"
+        ];
         
-        // We push to client directly or queue? 
-        // Better to queue it so it follows the same processing logic (logging etc)
-        // But the queue loop might be paused.
-        // Let's force send it.
+        const randomSegment = segments[Math.floor(Math.random() * segments.length)];
         
         addTurn({
            role: 'system',
-           text: "(Auto-Nudge) Generating Life Advice...",
+           text: "(Auto-Producer) Injecting Filler Segment...",
            isFinal: true
         });
         
-        client.send([{ text: nudgePrompt }]);
+        client.send([{ text: randomSegment }]);
         lastActivityRef.current = Date.now(); // Reset timer
       }
     }, 1000);
@@ -171,10 +173,10 @@ export default function DatabaseBridge() {
       isProcessingRef.current = true;
 
       try {
-        // PRE-ROLL BUFFER: Wait 8-10 seconds before speaking.
+        // PRE-ROLL BUFFER: Wait 6 seconds (reduced for radio pacing) before speaking.
         if (shouldBufferRef.current) {
-          console.log('Buffering stream for smooth playback (8s)...');
-          await new Promise(resolve => setTimeout(resolve, 8000));
+          console.log('Buffering stream for smooth playback (6s)...');
+          await new Promise(resolve => setTimeout(resolve, 6000));
           shouldBufferRef.current = false;
         }
 
@@ -182,26 +184,18 @@ export default function DatabaseBridge() {
           const rawText = queueRef.current[0];
           const style = voiceStyleRef.current;
 
-          // Inject Stage Directions based on selected Style
-          // Note: If dynamic characters are used, the prompt handles the style,
-          // but we can still add global pacing cues here.
           let scriptedText = rawText;
           
-          // Only add generic cues if it DOESN'T look like a dialogue line
-          // (Dialogue lines are handled by the character prompt)
           const isDialogue = /^([A-Z][a-zA-Z0-9\s\(\)]+):/.test(rawText);
-          const hasSSML = /<[^>]+>/.test(rawText); // Check if SSML is already present
+          const hasSSML = /<[^>]+>/.test(rawText);
 
           if (!isDialogue && !hasSSML) {
+            // Inject Radio Ad-libs if natural text
             if (style === 'breathy') {
-              // Inject breathy nuances if strict SSML isn't used
-              if (Math.random() > 0.7) {
-                 scriptedText = `(soft inhale) ${rawText}`;
-              } else {
-                 scriptedText = `${rawText} ... (pause)`;
-              }
-            } else if (style === 'dramatic') {
-               scriptedText = `<prosody rate="slow">${rawText}</prosody> ... <break time="800ms"/>`;
+               // Occasionally inject a laugh or gasp
+               if (Math.random() > 0.8) {
+                  scriptedText = `[laugh] ${rawText}`;
+               }
             }
           }
 
@@ -224,18 +218,17 @@ export default function DatabaseBridge() {
           // Remove the item we just sent
           queueRef.current.shift();
 
-          // Dynamic delay calculation for human-like pacing
+          // Radio Pacing: Faster than audio drama
           const wordCount = rawText.split(/\s+/).length;
-          const readTime = (wordCount / 2.5) * 1000;
+          const readTime = (wordCount / 3.0) * 1000; // Faster reading rate estimate
           
-          let bufferBase = 2000; 
-          if (style === 'natural') bufferBase = 1000;
-          if (style === 'dramatic') bufferBase = 3000;
+          let bufferBase = 500; 
+          if (style === 'dramatic') bufferBase = 2000;
 
           // Faster buffer for dialogue to keep conversation flowing
-          if (isDialogue) bufferBase = 500;
+          if (isDialogue) bufferBase = 200;
 
-          const bufferTime = bufferBase + (Math.random() * 500); 
+          const bufferTime = bufferBase + (Math.random() * 300); 
           
           await new Promise(resolve => setTimeout(resolve, readTime + bufferTime));
         }
@@ -246,7 +239,7 @@ export default function DatabaseBridge() {
         
         // If there's more data, continue immediately.
         if (queueRef.current.length > 0 && client.status === 'connected') {
-           setTimeout(processQueueLoop, 100);
+           setTimeout(processQueueLoop, 50);
         }
       }
     };

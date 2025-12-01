@@ -20,7 +20,8 @@ export default function Header() {
         <button 
           className="theme-button" 
           onClick={toggleTheme}
-          aria-label="Toggle Theme"
+          aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           <span 
             className="icon header-icon theme-toggle-icon"
@@ -32,6 +33,7 @@ export default function Header() {
           className="settings-button"
           onClick={toggleSidebar}
           aria-label="Settings"
+          title="Settings & Configuration"
         >
           <span className="icon header-icon settings-icon">settings</span>
         </button>

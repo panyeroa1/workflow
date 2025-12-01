@@ -157,7 +157,7 @@ export class GenAILiveClient {
     return true;
   }
 
-  public send(parts: Part | Part[], turnComplete: boolean = true) {
+  public async send(parts: Part | Part[], turnComplete: boolean = true) {
     if (this._status !== 'connected' || !this.session) {
       this.emitter.emit('error', new ErrorEvent('Client is not connected'));
       return;
@@ -169,50 +169,69 @@ export class GenAILiveClient {
       parts: Array.isArray(parts) ? parts : [parts],
     };
 
-    this.session.sendClientContent({ turns: [content], turnComplete });
-    this.log(`client.send`, parts);
+    try {
+      await this.session.sendClientContent({ turns: [content], turnComplete });
+      this.log(`client.send`, parts);
+    } catch (e: any) {
+      console.warn('GenAI Live API Send Error:', e);
+      // Log error but avoid hard crash of UI. 
+      // "Deadline expired" or "Internal Error" often transient.
+      this.log('client.send.error', e.message || 'Unknown send error');
+    }
   }
 
-  public sendRealtimeInput(chunks: Array<{ mimeType: string; data: string }>) {
+  public async sendRealtimeInput(chunks: Array<{ mimeType: string; data: string }>) {
     if (this._status !== 'connected' || !this.session) {
       this.emitter.emit('error', new ErrorEvent('Client is not connected'));
       return;
     }
-    chunks.forEach(chunk => {
-      this.session!.sendRealtimeInput({ media: chunk });
-    });
+    
+    try {
+      for (const chunk of chunks) {
+        await this.session.sendRealtimeInput({ media: chunk });
+      }
 
-    let hasAudio = false;
-    let hasVideo = false;
-    for (let i = 0; i < chunks.length; i++) {
-      const ch = chunks[i];
-      if (ch.mimeType.includes('audio')) hasAudio = true;
-      if (ch.mimeType.includes('image')) hasVideo = true;
-      if (hasAudio && hasVideo) break;
+      let hasAudio = false;
+      let hasVideo = false;
+      for (let i = 0; i < chunks.length; i++) {
+        const ch = chunks[i];
+        if (ch.mimeType.includes('audio')) hasAudio = true;
+        if (ch.mimeType.includes('image')) hasVideo = true;
+        if (hasAudio && hasVideo) break;
+      }
+
+      let message = 'unknown';
+      if (hasAudio && hasVideo) message = 'audio + video';
+      else if (hasAudio) message = 'audio';
+      else if (hasVideo) message = 'video';
+      this.log(`client.realtimeInput`, message);
+    } catch (e: any) {
+      console.warn('GenAI Live API Realtime Input Error:', e);
+      this.log('client.realtimeInput.error', e.message || 'Unknown error');
     }
-
-    let message = 'unknown';
-    if (hasAudio && hasVideo) message = 'audio + video';
-    else if (hasAudio) message = 'audio';
-    else if (hasVideo) message = 'video';
-    this.log(`client.realtimeInput`, message);
   }
 
-  public sendToolResponse(toolResponse: LiveClientToolResponse) {
+  public async sendToolResponse(toolResponse: LiveClientToolResponse) {
     if (this._status !== 'connected' || !this.session) {
       this.emitter.emit('error', new ErrorEvent('Client is not connected'));
       return;
     }
-    if (
-      toolResponse.functionResponses &&
-      toolResponse.functionResponses.length
-    ) {
-      this.session.sendToolResponse({
-        functionResponses: toolResponse.functionResponses!,
-      });
-    }
+    
+    try {
+      if (
+        toolResponse.functionResponses &&
+        toolResponse.functionResponses.length
+      ) {
+        await this.session.sendToolResponse({
+          functionResponses: toolResponse.functionResponses!,
+        });
+      }
 
-    this.log(`client.toolResponse`, { toolResponse });
+      this.log(`client.toolResponse`, { toolResponse });
+    } catch (e: any) {
+      console.warn('GenAI Live API Tool Response Error:', e);
+      this.log('client.toolResponse.error', e.message || 'Unknown error');
+    }
   }
 
   protected onMessage(message: LiveServerMessage) {
