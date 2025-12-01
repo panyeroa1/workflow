@@ -56,8 +56,8 @@ const segmentText = (text: string): string[] => {
   const chunks: string[] = [];
   let currentChunk = '';
   
-  const SOFT_LIMIT = 100;
-  const HARD_LIMIT = 220; 
+  const SOFT_LIMIT = 80;
+  const HARD_LIMIT = 180; 
 
   // Regex to detect Character Dialogue start (e.g., "John:", "DETECTIVE:", "Alice (Angry):")
   const charRegex = /^([A-Z][a-zA-Z0-9\s\(\)]+):/;
@@ -106,6 +106,7 @@ export default function DatabaseBridge() {
   const lastProcessedIdRef = useRef<number | null>(null);
   const voiceStyleRef = useRef(voiceStyle);
   const languageRef = useRef(language);
+  const lastActivityRef = useRef<number>(Date.now());
 
   // Sync refs for use in effect loop
   useEffect(() => { voiceStyleRef.current = voiceStyle; }, [voiceStyle]);
@@ -116,11 +117,48 @@ export default function DatabaseBridge() {
   const isProcessingRef = useRef(false);
   const shouldBufferRef = useRef(false);
 
+  // Silence Watchdog: Auto-Prompt if queue is empty for > 7 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!connected) return;
+      
+      const now = Date.now();
+      const timeSinceActivity = now - lastActivityRef.current;
+      
+      // If queue is empty AND it's been > 7 seconds AND we aren't currently processing a chunk
+      if (queueRef.current.length === 0 && timeSinceActivity > 7000 && !isProcessingRef.current) {
+        console.log('Silence detected. Injecting "Life Advice" nudge...');
+        
+        // Push a nudge prompt into the queue
+        // Using [CONTINUE] signal as defined in system prompt
+        const nudgePrompt = `[System: Silence detected (7s). The stream is quiet. Based on the previous context, ad-lib a short, empathetic 'hugot' line or life advice to keep the audience engaged. Do not repeat the last story.]`;
+        
+        // We push to client directly or queue? 
+        // Better to queue it so it follows the same processing logic (logging etc)
+        // But the queue loop might be paused.
+        // Let's force send it.
+        
+        addTurn({
+           role: 'system',
+           text: "(Auto-Nudge) Generating Life Advice...",
+           isFinal: true
+        });
+        
+        client.send([{ text: nudgePrompt }]);
+        lastActivityRef.current = Date.now(); // Reset timer
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [connected, client, addTurn]);
+
+
   // Data Ingestion & Processing Logic
   useEffect(() => {
     // 1. Reset Queue logic on Connection Change
     queueRef.current = [];
     isProcessingRef.current = false;
+    lastActivityRef.current = Date.now();
     
     // Trigger buffer only on fresh start
     shouldBufferRef.current = true;
@@ -152,12 +190,18 @@ export default function DatabaseBridge() {
           // Only add generic cues if it DOESN'T look like a dialogue line
           // (Dialogue lines are handled by the character prompt)
           const isDialogue = /^([A-Z][a-zA-Z0-9\s\(\)]+):/.test(rawText);
+          const hasSSML = /<[^>]+>/.test(rawText); // Check if SSML is already present
 
-          if (!isDialogue) {
+          if (!isDialogue && !hasSSML) {
             if (style === 'breathy') {
-              scriptedText = `(soft inhale) ${rawText} ... (pause)`;
+              // Inject breathy nuances if strict SSML isn't used
+              if (Math.random() > 0.7) {
+                 scriptedText = `(soft inhale) ${rawText}`;
+              } else {
+                 scriptedText = `${rawText} ... (pause)`;
+              }
             } else if (style === 'dramatic') {
-               scriptedText = `(slowly) ${rawText} ... (long pause)`;
+               scriptedText = `<prosody rate="slow">${rawText}</prosody> ... <break time="800ms"/>`;
             }
           }
 
@@ -175,6 +219,7 @@ export default function DatabaseBridge() {
 
           // Send to Gemini Live (Audio)
           client.send([{ text: scriptedText }]);
+          lastActivityRef.current = Date.now(); // Update activity timestamp
 
           // Remove the item we just sent
           queueRef.current.shift();
@@ -199,6 +244,7 @@ export default function DatabaseBridge() {
       } finally {
         isProcessingRef.current = false;
         
+        // If there's more data, continue immediately.
         if (queueRef.current.length > 0 && client.status === 'connected') {
            setTimeout(processQueueLoop, 100);
         }
@@ -235,6 +281,7 @@ export default function DatabaseBridge() {
       
       if (segments.length > 0) {
         queueRef.current.push(...segments);
+        lastActivityRef.current = Date.now(); // Mark activity
         processQueueLoop();
       }
     };
@@ -260,6 +307,11 @@ export default function DatabaseBridge() {
     };
     worker.postMessage('start');
 
+    // Auto-start reading immediately if connected
+    if (connected) {
+       fetchLatest();
+    }
+
     const channel = supabase
       .channel('bridge-realtime-opt')
       .on(
@@ -272,8 +324,6 @@ export default function DatabaseBridge() {
         }
       )
       .subscribe();
-
-    fetchLatest();
 
     return () => {
       worker.terminate();
